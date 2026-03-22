@@ -28,10 +28,10 @@ df_raw = load_data()
 st.sidebar.title("Navigasi")
 page = st.sidebar.radio("Pilih Halaman:", ["📊 Dashboard Analisis", "🔍 Prediksi Kelulusan"])
 
-# --- HALAMAN 1: DASHBOARD (Kriteria 3) ---
+# --- HALAMAN 1: DASHBOARD (Perbaikan Kriteria 3 - Komprehensif) ---
 if page == "📊 Dashboard Analisis":
-    st.title("📊 Dashboard Strategis Mahasiswa")
-    st.markdown("Analisis faktor-faktor yang berkontribusi terhadap status mahasiswa.")
+    st.title("📊 Dashboard Strategis Mahasiswa Jaya Jaya Institut")
+    st.markdown("Analisis komprehensif faktor-faktor yang berkontribusi terhadap status mahasiswa.")
     
     # FILTER INTERAKTIF
     st.sidebar.divider()
@@ -42,18 +42,59 @@ if page == "📊 Dashboard Analisis":
     # Terapkan Filter
     df_filtered = df_raw[(df_raw['Gender'].isin(f_gender)) & (df_raw['Scholarship_holder'].isin(f_scholar))]
 
+    # Row 1: Key Metrics & Komposisi Utama
+    col_m1, col_m2, col_m3 = st.columns(3)
+    with col_m1:
+        st.metric("Total Mahasiswa", len(df_filtered))
+    with col_m2:
+        dropout_count = len(df_filtered[df_filtered['Status'] == 'Dropout'])
+        st.metric("Total Dropout", dropout_count, delta=f"{(dropout_count/len(df_filtered)*100):.1f}%", delta_color="inverse")
+    with col_m3:
+        avg_grade = df_filtered['Curricular_units_2nd_sem_grade'].mean()
+        st.metric("Rata-rata Nilai Sem 2", f"{avg_grade:.2f}")
+
+    st.divider()
+
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Hubungan Usia vs Status")
-        fig1 = px.histogram(df_filtered, x="Age_at_enrollment", color="Status", barmode="group",
-                           labels={'Age_at_enrollment': 'Usia Saat Daftar', 'count': 'Jumlah Mahasiswa'})
-        st.plotly_chart(fig1, use_container_width=True)
+        # 1. PIE CHART: Komposisi Status (Mudah dipahami non-teknis)
+        st.subheader("📌 Persentase Kelulusan")
+        status_counts = df_filtered['Status'].value_counts().reset_index()
+        fig_pie = px.pie(status_counts, values='count', names='Status', 
+                         color_discrete_sequence=['#636efa', '#ef553b', '#00cc96'],
+                         hole=0.4)
+        st.plotly_chart(fig_pie, use_container_width=True)
         
     with col2:
-        st.subheader("Nilai Semester 2 vs Status")
-        fig2 = px.box(df_filtered, x="Status", y="Curricular_units_2nd_sem_grade", color="Status",
-                     labels={'Curricular_units_2nd_sem_grade': 'Nilai Semester 2'})
-        st.plotly_chart(fig2, use_container_width=True)
+        # 2. BAR CHART: Kelompok Usia (Permintaan Reviewer)
+        st.subheader("📌 Status Berdasarkan Kelompok Usia")
+        df_filtered['Age_Group'] = pd.cut(df_filtered['Age_at_enrollment'], 
+                                        bins=[0, 20, 30, 40, 60], 
+                                        labels=['<20', '20-30', '30-40', '>40'])
+        age_status = df_filtered.groupby(['Age_Group', 'Status']).size().reset_index(name='Jumlah')
+        fig_age = px.bar(age_status, x='Age_Group', y='Jumlah', color='Status', barmode='group',
+                         color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa', 'Enrolled': '#00cc96'})
+        st.plotly_chart(fig_age, use_container_width=True)
+
+    st.divider()
+
+    col3, col4 = st.columns(2)
+    with col3:
+        # 3. BAR CHART: Status Keuangan (Debtor) vs Status (Faktor Penting)
+        st.subheader("📌 Pengaruh Hutang Biaya Kuliah")
+        debt_status = df_filtered.groupby(['Debtor', 'Status']).size().reset_index(name='Jumlah')
+        debt_status['Debtor'] = debt_status['Debtor'].map({1: 'Punya Hutang', 0: 'Lunas'})
+        fig_debt = px.bar(debt_status, x='Debtor', y='Jumlah', color='Status', barmode='stack',
+                          color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa', 'Enrolled': '#00cc96'})
+        st.plotly_chart(fig_debt, use_container_width=True)
+
+    with col4:
+        # 4. HISTOGRAM: Performa Akademik (Lebih baik dari Boxplot untuk umum)
+        st.subheader("📌 Distribusi Nilai Akademik")
+        fig_hist = px.histogram(df_filtered, x="Curricular_units_2nd_sem_grade", color="Status",
+                               nbins=20, barmode='overlay',
+                               color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa', 'Enrolled': '#00cc96'})
+        st.plotly_chart(fig_hist, use_container_width=True)
 
 # --- HALAMAN 2: PREDIKSI ---
 else:
@@ -97,12 +138,9 @@ else:
             submit = st.form_submit_button("Analisis Status Mahasiswa")
 
         if submit:
-            # Buat dictionary awal semua fitur = 0
             data_input = {feat: 0 for feat in expected_features}
             
-            # Update fitur dari input user
-            # Penting: Curricular_units_2nd_sem_approved diisi otomatis berdasarkan grade 
-            # agar model tidak menganggap mahasiswa tidak lulus unit sama sekali (penyebab dropout terus)
+            # Logika pengisian otomatis unit agar prediksi akurat
             approved_units = 5 if sem2_grade > 10 else 0
             
             data_input.update({
@@ -116,10 +154,7 @@ else:
                 'Admission_grade': admission
             })
 
-            # Buat DataFrame
             df_final = pd.DataFrame([data_input])[expected_features]
-            
-            # Prediksi (0 = Graduate, 1 = Dropout sesuai urutan label di notebook kamu)
             res = model.predict(df_final)[0]
             
             st.divider()
