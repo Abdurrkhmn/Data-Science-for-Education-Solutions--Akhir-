@@ -10,17 +10,16 @@ st.set_page_config(page_title="Jaya Jaya Institut Analytics", layout="wide")
 @st.cache_resource
 def load_model():
     try:
+        # Memastikan model dimuat dengan benar
         return joblib.load('model_dropout.pkl')
     except Exception as e:
+        st.error(f"Error Loading Model: {e}. Pastikan versi scikit-learn di requirements.txt adalah 1.5.1")
         return None
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data.csv", sep=";")
-    # FILTER KRUSIAL: Memastikan data yang di-load HANYA Dropout dan Graduate
-    # Ini yang akan membuat hasil di Cloud sama dengan hasil di Lokal/Notebook kamu
-    df = df[df['Status'].isin(['Dropout', 'Graduate'])]
-    return df
+    # Load data untuk dashboard
+    return pd.read_csv("data.csv", sep=";")
 
 model = load_model()
 df_raw = load_data()
@@ -29,8 +28,10 @@ df_raw = load_data()
 st.sidebar.title("Navigasi")
 page = st.sidebar.radio("Pilih Halaman:", ["📊 Dashboard Analisis", "🔍 Prediksi Kelulusan"])
 
+# --- HALAMAN 1: DASHBOARD (Perbaikan Kriteria 3 - Komprehensif) ---
 if page == "📊 Dashboard Analisis":
     st.title("📊 Dashboard Strategis Mahasiswa Jaya Jaya Institut")
+    st.markdown("Analisis komprehensif faktor-faktor yang berkontribusi terhadap status mahasiswa.")
     
     # FILTER INTERAKTIF
     st.sidebar.divider()
@@ -38,9 +39,10 @@ if page == "📊 Dashboard Analisis":
     f_gender = st.sidebar.multiselect("Gender:", options=df_raw['Gender'].unique(), default=df_raw['Gender'].unique(), format_func=lambda x: "Laki-laki" if x==1 else "Perempuan")
     f_scholar = st.sidebar.multiselect("Penerima Beasiswa:", options=df_raw['Scholarship_holder'].unique(), default=df_raw['Scholarship_holder'].unique(), format_func=lambda x: "Ya" if x==1 else "Tidak")
 
+    # Terapkan Filter
     df_filtered = df_raw[(df_raw['Gender'].isin(f_gender)) & (df_raw['Scholarship_holder'].isin(f_scholar))]
 
-    # Row 1: Metrics
+    # Row 1: Key Metrics & Komposisi Utama
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
         st.metric("Total Mahasiswa", len(df_filtered))
@@ -55,44 +57,47 @@ if page == "📊 Dashboard Analisis":
 
     col1, col2 = st.columns(2)
     with col1:
+        # 1. PIE CHART: Komposisi Status (Mudah dipahami non-teknis)
         st.subheader("📌 Persentase Kelulusan")
         status_counts = df_filtered['Status'].value_counts().reset_index()
         fig_pie = px.pie(status_counts, values='count', names='Status', 
-                         color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'},
+                         color_discrete_sequence=['#636efa', '#ef553b', '#00cc96'],
                          hole=0.4)
         st.plotly_chart(fig_pie, use_container_width=True)
         
     with col2:
+        # 2. BAR CHART: Kelompok Usia (Permintaan Reviewer)
         st.subheader("📌 Status Berdasarkan Kelompok Usia")
         df_filtered['Age_Group'] = pd.cut(df_filtered['Age_at_enrollment'], 
                                         bins=[0, 20, 30, 40, 60], 
                                         labels=['<20', '20-30', '30-40', '>40'])
         age_status = df_filtered.groupby(['Age_Group', 'Status']).size().reset_index(name='Jumlah')
         fig_age = px.bar(age_status, x='Age_Group', y='Jumlah', color='Status', barmode='group',
-                         color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
+                         color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa', 'Enrolled': '#00cc96'})
         st.plotly_chart(fig_age, use_container_width=True)
 
     st.divider()
 
     col3, col4 = st.columns(2)
     with col3:
+        # 3. BAR CHART: Status Keuangan (Debtor) vs Status (Faktor Penting)
         st.subheader("📌 Pengaruh Hutang Biaya Kuliah")
         debt_status = df_filtered.groupby(['Debtor', 'Status']).size().reset_index(name='Jumlah')
         debt_status['Debtor'] = debt_status['Debtor'].map({1: 'Punya Hutang', 0: 'Lunas'})
         fig_debt = px.bar(debt_status, x='Debtor', y='Jumlah', color='Status', barmode='stack',
-                          color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
+                          color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa', 'Enrolled': '#00cc96'})
         st.plotly_chart(fig_debt, use_container_width=True)
 
     with col4:
+        # 4. HISTOGRAM: Performa Akademik (Lebih baik dari Boxplot untuk umum)
         st.subheader("📌 Distribusi Nilai Akademik")
         fig_hist = px.histogram(df_filtered, x="Curricular_units_2nd_sem_grade", color="Status",
                                nbins=20, barmode='overlay',
-                               color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
+                               color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa', 'Enrolled': '#00cc96'})
         st.plotly_chart(fig_hist, use_container_width=True)
 
-# --- HALAMAN 2: PREDIKSI (Tetap Sama) ---
+# --- HALAMAN 2: PREDIKSI ---
 else:
-    # ... bagian prediksi kamu (copy-paste dari file lama kamu)
     st.title("🔍 Prediksi Potensi Kelulusan")
     st.markdown("Masukkan data akademik mahasiswa untuk memprediksi status akhir.")
     
