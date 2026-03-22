@@ -19,12 +19,7 @@ def load_model():
 @st.cache_data
 def load_data():
     # Load data untuk dashboard
-    df = pd.read_csv("data.csv", sep=";")
-    
-    # TAMBAHKAN BARIS INI: Agar hasil Cloud sama dengan Lokal (Hanya Graduate & Dropout)
-    df = df[df['Status'] != 'Enrolled'] 
-    
-    return df
+    return pd.read_csv("data.csv", sep=";")
 
 model = load_model()
 df_raw = load_data()
