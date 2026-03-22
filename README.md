@@ -45,8 +45,7 @@ pip install -r requirements.txt
 
 ## Business Dashboard
 *Business Dashboard* dikembangkan untuk mempermudah manajemen dalam memantau tren data secara *real-time*. 
-* **Link Dashboard Online:** [Jaya Jaya Institut Analytics](https://abdurrkhmn-data-science-for-education-solutions--akh-app-wttsd3.streamlit.app/)
-
+* **Link Dashboard Online:** [Jaya Jaya Institut Analytics](https://abdurrkhmn-data-science-for-education-solutions--akh-app-hrhwmd.streamlit.app/)
 
 **Fitur Dashboard:**
 * **Filter Interaktif:** Berdasarkan Gender dan Status Beasiswa.
