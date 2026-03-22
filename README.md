@@ -40,7 +40,7 @@ pip install -r requirements.txt
 * **Filter Interaktif:** Memungkinkan pengguna memfilter data berdasarkan Gender dan Status Beasiswa.
 * **Analisis Proporsi:** Visualisasi persentase mahasiswa berdasarkan status kelulusan.
 * **Analisis Faktor Risiko:** Grafik yang membandingkan performa akademik semester 2 terhadap kemungkinan *dropout*.
-Link Dashboard: https://lookerstudio.google.com/reporting/8473f49e-66c4-4f43-94d0-44b9b796588f
+Link Dashboard: https://abdurrkhmn-data-science-for-education-solutions--akh-app-u7phtc.streamlit.app/
 
 ## Menjalankan Sistem Machine Learning
 Untuk menjalankan prototipe sistem *machine learning* secara lokal, ikuti langkah berikut:
