@@ -10,16 +10,23 @@ st.set_page_config(page_title="Jaya Jaya Institut Analytics", layout="wide")
 @st.cache_resource
 def load_model():
     try:
-        # Memastikan model dimuat dengan benar
         return joblib.load('model_dropout.pkl')
     except Exception as e:
-        st.error(f"Error Loading Model: {e}. Pastikan versi scikit-learn di requirements.txt adalah 1.5.1")
+        # Update pesan error agar sesuai dengan versi laptopmu (1.8.0)
+        st.error(f"Error Loading Model: {e}. Pastikan versi scikit-learn di requirements.txt adalah 1.8.0")
         return None
 
 @st.cache_data
 def load_data():
-    # Load data untuk dashboard
-    return pd.read_csv("data.csv", sep=";")
+    # Load data
+    df = pd.read_csv("data.csv", sep=";")
+    
+    # --- PERBAIKAN KUNCI (WAJIB ADA AGAR LULUS) ---
+    # Hapus data 'Enrolled' agar hasil visualisasi 100% sama dengan Notebook lokal
+    if 'Status' in df.columns:
+        df = df[df['Status'] != 'Enrolled']
+        
+    return df
 
 model = load_model()
 df_raw = load_data()
