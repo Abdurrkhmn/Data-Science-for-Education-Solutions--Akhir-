@@ -14,16 +14,14 @@ def load_model():
         # Load model yang sudah di-save dari notebook
         return joblib.load('model_dropout.pkl')
     except Exception as e:
-        st.error(f"Gagal memuat model: {e}. Pastikan scikit-learn di requirements.txt adalah 1.8.0")
+        st.error(f"Gagal memuat model: {e}")
         return None
 
 @st.cache_data
 def load_data():
     try:
         df = pd.read_csv("data.csv", sep=";")
-        # KUNCI KELULUSAN KRITERIA 3:
-        # Di Notebook kamu menghapus 'Enrolled', maka di App juga wajib dihapus
-        # agar angka visualisasi (Lokal vs Deploy) identik.
+        # Kriteria 3: Menghapus 'Enrolled' agar konsisten dengan notebook
         if 'Status' in df.columns:
             df = df[df['Status'] != 'Enrolled']
         
@@ -46,68 +44,89 @@ if page == "📊 Dashboard Analisis":
     st.title("📊 Dashboard Strategis Mahasiswa Jaya Jaya Institut")
     st.markdown("Analisis faktor-faktor pendorong status mahasiswa (Graduate vs Dropout).")
     
-    # Filter Interaktif
+    # --- FILTER INTERAKTIF (PERBAIKAN KRITERIA 3) ---
     st.sidebar.divider()
     st.sidebar.subheader("Filter Data")
     
-    # Ambil semua opsi unik untuk Gender
-    gender_options = sorted(df_raw['Gender'].unique())
-    f_gender = st.sidebar.multiselect(
-        "Pilih Gender (1: Laki-laki, 0: Perempuan):", 
-        options=gender_options, 
-        default=gender_options
+    # Mapping agar user friendly (Teks, bukan angka 0/1)
+    gender_map = {1: "Laki-laki", 0: "Perempuan"}
+    scholar_map = {1: "Penerima Beasiswa", 0: "Bukan Penerima"}
+
+    # Filter Gender
+    f_gender_labels = st.sidebar.multiselect(
+        "Pilih Jenis Kelamin:", 
+        options=list(gender_map.values()), 
+        default=list(gender_map.values())
     )
 
-    # Terapkan Filter
-    df_filtered = df_raw[df_raw['Gender'].isin(f_gender)]
+    # Filter Beasiswa (Fitur tambahan sesuai laporan)
+    f_scholar_labels = st.sidebar.multiselect(
+        "Pilih Status Beasiswa:",
+        options=list(scholar_map.values()),
+        default=list(scholar_map.values())
+    )
 
-    # Bagian Metrik Utama
-    col_m1, col_m2, col_m3 = st.columns(3)
-    with col_m1:
-        st.metric("Total Mahasiswa Analisis", len(df_filtered))
-    with col_m2:
-        dropout_count = len(df_filtered[df_filtered['Status'] == 'Dropout'])
-        dropout_rate = (dropout_count / len(df_filtered) * 100) if len(df_filtered) > 0 else 0
-        st.metric("Dropout Rate", f"{dropout_rate:.1f}%", delta=f"{dropout_count} Orang", delta_color="inverse")
-    with col_m3:
-        avg_grade = df_filtered['Curricular_units_2nd_sem_grade'].mean()
-        st.metric("Rata-rata Nilai Sem 2", f"{avg_grade:.2f}")
+    # Konversi label kembali ke numerik untuk filter dataframe
+    selected_gender_ids = [k for k, v in gender_map.items() if v in f_gender_labels]
+    selected_scholar_ids = [k for k, v in scholar_map.items() if v in f_scholar_labels]
 
-    st.divider()
+    # Terapkan Filter Ganda
+    df_filtered = df_raw[
+        (df_raw['Gender'].isin(selected_gender_ids)) & 
+        (df_raw['Scholarship_holder'].isin(selected_scholar_ids))
+    ]
 
-    # Baris Visualisasi 1
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("📌 Persentase Kelulusan")
-        fig_pie = px.pie(df_filtered, names='Status', hole=0.4,
-                         color_discrete_map={'Graduate': '#636efa', 'Dropout': '#ef553b'})
-        st.plotly_chart(fig_pie, use_container_width=True)
-        
-    with col2:
-        st.subheader("📌 Status Berdasarkan Kelompok Usia")
-        # Binning usia sesuai standar notebook
-        df_filtered['Age_Group'] = pd.cut(df_filtered['Age_at_enrollment'], 
-                                        bins=[0, 20, 30, 40, 100], 
-                                        labels=['<20', '20-30', '30-40', '>40'])
-        fig_age = px.bar(df_filtered, x='Age_Group', color='Status', barmode='group',
-                         color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
-        st.plotly_chart(fig_age, use_container_width=True)
+    # --- VISUALISASI (CEK APAKAH DATA KOSONG) ---
+    if not df_filtered.empty:
+        # Bagian Metrik Utama
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            st.metric("Total Mahasiswa Analisis", len(df_filtered))
+        with col_m2:
+            dropout_count = len(df_filtered[df_filtered['Status'] == 'Dropout'])
+            dropout_rate = (dropout_count / len(df_filtered) * 100) if len(df_filtered) > 0 else 0
+            st.metric("Dropout Rate", f"{dropout_rate:.1f}%", delta=f"{dropout_count} Orang", delta_color="inverse")
+        with col_m3:
+            avg_grade = df_filtered['Curricular_units_2nd_sem_grade'].mean()
+            st.metric("Rata-rata Nilai Sem 2", f"{avg_grade:.2f}")
 
-    # Baris Visualisasi 2
-    col3, col4 = st.columns(2)
-    with col3:
-        st.subheader("📌 Pengaruh Hutang terhadap Kelulusan")
-        fig_debt = px.histogram(df_filtered, x='Debtor', color='Status', barmode='group',
-                                color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'},
-                                labels={'Debtor': 'Punya Hutang (1: Ya, 0: Tidak)'})
-        st.plotly_chart(fig_debt, use_container_width=True)
+        st.divider()
 
-    with col4:
-        st.subheader("📌 Distribusi Nilai Akademik Semester 2")
-        fig_hist = px.histogram(df_filtered, x="Curricular_units_2nd_sem_grade", color="Status",
-                                 marginal="box", barmode='overlay',
-                                 color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
-        st.plotly_chart(fig_hist, use_container_width=True)
+        # Baris Visualisasi 1
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("📌 Persentase Kelulusan")
+            fig_pie = px.pie(df_filtered, names='Status', hole=0.4,
+                             color_discrete_map={'Graduate': '#636efa', 'Dropout': '#ef553b'})
+            st.plotly_chart(fig_pie, use_container_width=True)
+            
+        with col2:
+            st.subheader("📌 Status Berdasarkan Kelompok Usia")
+            df_filtered['Age_Group'] = pd.cut(df_filtered['Age_at_enrollment'], 
+                                            bins=[0, 20, 30, 40, 100], 
+                                            labels=['<20', '20-30', '30-40', '>40'])
+            fig_age = px.bar(df_filtered, x='Age_Group', color='Status', barmode='group',
+                             color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
+            st.plotly_chart(fig_age, use_container_width=True)
+
+        # Baris Visualisasi 2
+        col3, col4 = st.columns(2)
+        with col3:
+            st.subheader("📌 Pengaruh Hutang terhadap Kelulusan")
+            fig_debt = px.histogram(df_filtered, x='Debtor', color='Status', barmode='group',
+                                    color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'},
+                                    labels={'Debtor': 'Punya Hutang (1: Ya, 0: Tidak)'})
+            st.plotly_chart(fig_debt, use_container_width=True)
+
+        with col4:
+            st.subheader("📌 Distribusi Nilai Akademik Semester 2")
+            fig_hist = px.histogram(df_filtered, x="Curricular_units_2nd_sem_grade", color="Status",
+                                     marginal="box", barmode='overlay',
+                                     color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
+            st.plotly_chart(fig_hist, use_container_width=True)
+    else:
+        # Menghindari visualisasi kosong dengan pesan peringatan
+        st.warning("⚠️ Tidak ada data yang sesuai dengan filter. Silakan centang kembali opsi di sidebar.")
 
 # --- HALAMAN 2: PREDIKSI ---
 else:
@@ -115,7 +134,6 @@ else:
     st.info("Input data di bawah ini untuk melihat prediksi status mahasiswa.")
 
     if model is not None:
-        # Urutan 36 FITUR WAJIB (Harus sama dengan X_train di Notebook)
         features = [
             'Marital_status', 'Application_mode', 'Application_order', 'Course',
             'Daytime_evening_attendance', 'Previous_qualification',
@@ -152,7 +170,6 @@ else:
             btn_predict = st.form_submit_button("Cek Status Sekarang")
 
         if btn_predict:
-            # Buat array input (isi 0 untuk fitur yang tidak ada di form)
             input_dict = {feat: 0 for feat in features}
             input_dict.update({
                 'Tuition_fees_up_to_date': f_tuition,
@@ -164,19 +181,15 @@ else:
                 'Curricular_units_2nd_sem_grade': f_sem2_grade,
                 'Admission_grade': f_admission,
                 'Course': f_course,
-                # Asumsi sem 1 mirip sem 2 agar model tidak bingung
                 'Curricular_units_1st_sem_approved': f_sem2_approved,
                 'Curricular_units_1st_sem_grade': f_sem2_grade
             })
 
-            # Konversi ke DataFrame dengan urutan yang BENAR
             df_final = pd.DataFrame([input_dict])[features]
             
             try:
                 prediction = model.predict(df_final)[0]
-                
                 st.divider()
-                # Jika model di notebook menggunakan label teks
                 if prediction == 'Graduate' or prediction == 0: 
                     st.success("### HASIL: MAHASISWA DIPREDIKSI LULUS (GRADUATE) ✅")
                     st.balloons()
