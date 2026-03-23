@@ -11,7 +11,6 @@ st.set_page_config(page_title="Jaya Jaya Institut Analytics", layout="wide")
 @st.cache_resource
 def load_model():
     try:
-        # Load model sesuai versi scikit-learn di requirements.txt (1.8.0)
         return joblib.load('model_dropout.pkl')
     except Exception as e:
         st.error(f"Gagal memuat model: {e}")
@@ -20,13 +19,23 @@ def load_model():
 @st.cache_data
 def load_data():
     try:
+        # Menggunakan sep=";" sesuai format data Anda
         df = pd.read_csv("data.csv", sep=";")
-        # Kriteria 3: Menghapus 'Enrolled' agar konsisten dengan notebook (Biner: Graduate vs Dropout)
+        
+        # Bersihkan spasi di nama kolom (Sering jadi penyebab grafik tidak muncul)
+        df.columns = df.columns.str.strip()
+        
+        # Kriteria 3: Menghapus 'Enrolled'
         if 'Status' in df.columns:
             df = df[df['Status'] != 'Enrolled']
         
-        # Bersihkan spasi di nama kolom jika ada
-        df.columns = df.columns.str.strip()
+        # PASTIKAN KOLOM NILAI ADALAH ANGKA (PENTING UNTUK GRAFIK DISTRIBUSI)
+        target_col = 'Curricular_units_2nd_sem_grade'
+        if target_col in df.columns:
+            df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
+            # Hapus baris yang nilainya kosong/error agar grafik tidak pecah
+            df = df.dropna(subset=[target_col])
+            
         return df
     except Exception as e:
         st.error(f"Gagal memuat data: {e}")
@@ -39,52 +48,41 @@ df_raw = load_data()
 st.sidebar.title("Navigasi")
 page = st.sidebar.radio("Pilih Halaman:", ["📊 Dashboard Analisis", "🔍 Prediksi Kelulusan"])
 
-# --- 4. HALAMAN 1: DASHBOARD (Perbaikan Filter & Visualisasi) ---
+# --- 4. HALAMAN 1: DASHBOARD ---
 if page == "📊 Dashboard Analisis":
     st.title("📊 Dashboard Strategis Mahasiswa Jaya Jaya Institut")
     st.markdown("Analisis komprehensif faktor penentu keberhasilan studi mahasiswa.")
     
-    # FILTER INTERAKTIF (Sesuai Catatan Reviewer: Pakai Teks, Bukan Angka)
     st.sidebar.divider()
     st.sidebar.subheader("Filter Data")
     
-    # Map untuk tampilan filter yang ramah pengguna
     gender_map = {1: "Laki-laki", 0: "Perempuan"}
     scholar_map = {1: "Penerima Beasiswa", 0: "Bukan Penerima"}
     
     selected_gender_labels = st.sidebar.multiselect(
-        "Gender:", 
-        options=list(gender_map.values()), 
-        default=list(gender_map.values())
+        "Gender:", options=list(gender_map.values()), default=list(gender_map.values())
     )
-    
     selected_scholar_labels = st.sidebar.multiselect(
-        "Status Beasiswa:", 
-        options=list(scholar_map.values()), 
-        default=list(scholar_map.values())
+        "Status Beasiswa:", options=list(scholar_map.values()), default=list(scholar_map.values())
     )
 
-    # Kembalikan label ke angka untuk filtering dataframe
     inv_gender_map = {v: k for k, v in gender_map.items()}
     inv_scholar_map = {v: k for k, v in scholar_map.items()}
     
     genders = [inv_gender_map[l] for l in selected_gender_labels]
     scholars = [inv_scholar_map[l] for l in selected_scholar_labels]
 
-    # Aplikasi Filter
     df_filtered = df_raw[
         (df_raw['Gender'].isin(genders)) & 
         (df_raw['Scholarship_holder'].isin(scholars))
-    ]
+    ].copy() # Menggunakan .copy() agar aman saat manipulasi data
 
-    # Cek jika data kosong setelah difilter (Cegah visualisasi kosong)
     if df_filtered.empty:
-        st.warning("⚠️ Data tidak ditemukan untuk kombinasi filter ini. Silakan atur ulang filter di sidebar.")
+        st.warning("⚠️ Data tidak ditemukan untuk kombinasi filter ini.")
     else:
-        # Row 1: Metrics Utama
+        # Row 1: Metrics
         m1, m2, m3 = st.columns(3)
-        with m1:
-            st.metric("Total Mahasiswa", len(df_filtered))
+        with m1: st.metric("Total Mahasiswa", len(df_filtered))
         with m2:
             drp = len(df_filtered[df_filtered['Status'] == 'Dropout'])
             pct = (drp/len(df_filtered)*100) if len(df_filtered) > 0 else 0
@@ -95,12 +93,11 @@ if page == "📊 Dashboard Analisis":
 
         st.divider()
 
-        # Row 2: Visualisasi Utama
+        # Row 2: Visualisasi
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("📌 Komposisi Status Mahasiswa")
-            fig_pie = px.pie(df_filtered, names='Status', hole=0.4,
-                             color='Status',
+            fig_pie = px.pie(df_filtered, names='Status', hole=0.4, color='Status',
                              color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
             st.plotly_chart(fig_pie, use_container_width=True)
             
@@ -125,18 +122,28 @@ if page == "📊 Dashboard Analisis":
             st.plotly_chart(fig_debt, use_container_width=True)
 
         with c4:
+            # BAGIAN INI SUDAH DIPERBAIKI AGAR PASTI MUNCUL
             st.subheader("📌 Distribusi Nilai Semester 2")
-            fig_hist = px.histogram(df_filtered, x="Curricular_units_2nd_sem_grade", color="Status",
-                                    marginal="box", color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
-            st.plotly_chart(fig_hist, use_container_width=True)
+            try:
+                fig_hist = px.histogram(
+                    df_filtered, 
+                    x="Curricular_units_2nd_sem_grade", 
+                    color="Status",
+                    marginal="box", 
+                    nbins=20, # Memberi batasan bin agar lebih rapi
+                    color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'},
+                    labels={'Curricular_units_2nd_sem_grade': 'Nilai Semester 2'}
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+            except Exception as e:
+                st.error(f"Gagal menampilkan grafik nilai: {e}")
 
-# --- 5. HALAMAN 2: PREDIKSI ---
+# --- 5. HALAMAN 2: PREDIKSI (Sesuai Nyawa Kode Anda) ---
 else:
     st.title("🔍 Prediksi Potensi Kelulusan")
     st.info("Sistem ini menggunakan 36 fitur akademik dan demografis sesuai dengan model latih.")
 
     if model is not None:
-        # 36 Fitur wajib sesuai model_dropout.pkl
         features = [
             'Marital_status', 'Application_mode', 'Application_order', 'Course',
             'Daytime_evening_attendance', 'Previous_qualification',
@@ -164,7 +171,6 @@ else:
                 f_debtor = st.selectbox("Hutang Kuliah", [1, 0], format_func=lambda x: "Ada" if x==1 else "Tidak Ada")
                 f_tuition = st.selectbox("UKT Lunas?", [1, 0], format_func=lambda x: "Ya" if x==1 else "Tidak")
                 f_age = st.number_input("Usia Saat Daftar", 17, 60, 20)
-            
             with col_b:
                 st.subheader("Data Akademik")
                 f_course = st.number_input("ID Program Studi (Course)", 1, 9999, 33)
@@ -177,10 +183,7 @@ else:
             submit = st.form_submit_button("Mulai Analisis Prediksi")
 
         if submit:
-            # 1. Buat data input dengan 36 fitur (default 0)
             input_data = {feat: 0 for feat in features}
-            
-            # 2. Update dengan input user
             input_data.update({
                 'Gender': f_gender, 'Scholarship_holder': f_scholar, 'Debtor': f_debtor,
                 'Tuition_fees_up_to_date': f_tuition, 'Age_at_enrollment': f_age,
@@ -197,21 +200,20 @@ else:
             df_pred = pd.DataFrame([input_data])[features]
             res = model.predict(df_pred)[0]
 
-            # Tampilkan Hasil dan Saran Sesuai Nyawa Kode Anda
             st.subheader("Hasil Analisis:")
             if res == 0 or str(res).lower() == 'graduate':
                 st.success("### STATUS PREDIKSI: GRADUATE (LULUS) ✅")
                 st.balloons()
                 st.markdown("""
                 **Saran Strategis:**
-                * **Career Preparation:** Mahasiswa berada di jalur yang benar. Sarankan untuk mulai mengambil sertifikasi profesional.
-                * **Ambassador:** Mahasiswa ini berpotensi menjadi mentor bagi adik tingkat.
+                * **Career Preparation:** Mahasiswa berada di jalur yang benar.
+                * **Ambassador:** Mahasiswa ini berpotensi menjadi mentor.
                 """)
             else:
                 st.error("### STATUS PREDIKSI: DROPOUT (BERISIKO) ❌")
                 st.markdown("""
                 **Saran Intervensi (Action Items):**
-                * **Early Warning:** Segera jadwalkan pertemuan dengan Dosen Pembimbing Akademik.
-                * **Financial Check:** Jika faktor penyebab adalah hutang/biaya, arahkan ke bagian kemahasiswaan untuk cicilan.
-                * **Tutoring:** Berikan tambahan jam belajar untuk mata kuliah semester 2 yang sulit.
+                * **Early Warning:** Segera jadwalkan pertemuan dengan DPA.
+                * **Financial Check:** Arahkan ke bagian kemahasiswaan untuk cicilan.
+                * **Tutoring:** Berikan tambahan jam belajar.
                 """)
