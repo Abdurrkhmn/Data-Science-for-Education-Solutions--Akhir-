@@ -127,10 +127,10 @@ if page == "📊 Dashboard Analisis":
         with c4:
             st.subheader("📌 Distribusi Nilai Semester 2")
             fig_hist = px.histogram(df_filtered, x="Curricular_units_2nd_sem_grade", color="Status",
-                                   marginal="box", color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
+                                    marginal="box", color_discrete_map={'Dropout': '#ef553b', 'Graduate': '#636efa'})
             st.plotly_chart(fig_hist, use_container_width=True)
 
-# --- 5. HALAMAN 2: PREDIKSI (Perbaikan Konsistensi 36 Fitur) ---
+# --- 5. HALAMAN 2: PREDIKSI ---
 else:
     st.title("🔍 Prediksi Potensi Kelulusan")
     st.info("Sistem ini menggunakan 36 fitur akademik dan demografis sesuai dengan model latih.")
@@ -188,7 +188,6 @@ else:
                 'Curricular_units_2nd_sem_approved': f_sem2_approved,
                 'Curricular_units_2nd_sem_grade': f_sem2_grade,
                 'Displaced': f_displaced,
-                # Isi fitur sem 1 dengan nilai sem 2 sebagai proksi jika tidak diinput
                 'Curricular_units_1st_sem_approved': f_sem2_approved,
                 'Curricular_units_1st_sem_grade': f_sem2_grade,
                 'Curricular_units_1st_sem_enrolled': f_sem2_approved + 1,
@@ -198,7 +197,7 @@ else:
             df_pred = pd.DataFrame([input_data])[features]
             res = model.predict(df_pred)[0]
 
-            # Tampilkan Hasil dan Saran
+            # Tampilkan Hasil dan Saran Sesuai Nyawa Kode Anda
             st.subheader("Hasil Analisis:")
             if res == 0 or str(res).lower() == 'graduate':
                 st.success("### STATUS PREDIKSI: GRADUATE (LULUS) ✅")
